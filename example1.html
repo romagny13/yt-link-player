@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+    <style>
+      .video-container {
+        border-radius: 20px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0, 0, 0, 0.02);
+        position: relative;
+        max-width: 100%;
+        overflow: hidden;
+        padding-bottom: 56.25%; /* Aspect ratio 16:9 */
+        text-align: center;
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+          box-shadow 0.3s ease-out;
+      }
+
+      .video-container iframe {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        border-radius: 20px;
+        transition: opacity 0.3s ease;
+      }
+
+      .video-container:hover {
+        transform: scale(1.005) translateY(-2px);
+        box-shadow: 0 6px 12px rgba(0, 0, 0, 0.07),
+          0 2px 4px rgba(0, 0, 0, 0.04);
+      }
+    </style>
+  </head>
+  <body>
+    <a href="https://www.youtube.com/watch?v=jJ1Npb1y4ZE" data-yt-link
+      >Voir la vidéo</a
+    >
+
+    <a href="https://www.youtube.com/watch?v=BFMDUokVCRs" data-yt-link>
+      Voir la vidéo en grand format
+    </a>
+
+    <script src="/src/yt-link-player.js"></script>
+    <script>
+      const player = new YouTubeLinkPlayer({
+        onVideoShow: (container, link) => {
+          console.log("Vidéo affichée !");
+        },
+      });
+    </script>
+  </body>
+</html>
