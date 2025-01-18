@@ -3,8 +3,17 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Document</title>
+    <title>Example 2 - Target container</title>
     <style>
+      body {
+        font-family: "Arial", sans-serif;
+      }
+
+      .container {
+        max-width: 800px;
+        margin: 0 auto;
+      }
+
       .video-container {
         border-radius: 20px;
         box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0, 0, 0, 0.02);
@@ -32,29 +41,47 @@
         box-shadow: 0 6px 12px rgba(0, 0, 0, 0.07),
           0 2px 4px rgba(0, 0, 0, 0.04);
       }
+
+      .video-wrapper {
+        height: 0;
+        overflow: hidden;
+        transition: all 0.5s ease;
+        margin: 0; /* Supprime les marges */
+        opacity: 0;
+      }
+
+      .video-wrapper.visible {
+        height: auto;
+        opacity: 1;
+        margin: 20px 0;
+      }
+      
     </style>
   </head>
   <body>
-    <a
-      href="https://www.youtube.com/watch?v=jJ1Npb1y4ZE"
-      data-yt-link
-      data-yt-target="video-target"
-      >Voir la vidéo</a
-    >
-    <a
-      href="https://www.youtube.com/watch?v=BFMDUokVCRs"
-      data-yt-link
-      data-yt-target="video-target"
-    >
-      Voir la vidéo en grand format
-    </a>
+    <div class="container">
+      <a
+        href="https://www.youtube.com/watch?v=jJ1Npb1y4ZE"
+        data-yt-link
+        data-yt-target="video-target"
+        >Voir la vidéo</a
+      >
+      <a
+        href="https://www.youtube.com/watch?v=BFMDUokVCRs"
+        data-yt-link
+        data-yt-target="video-target"
+      >
+        Voir la vidéo en grand format
+      </a>
 
-    <!-- Target -->
-    <div id="video-target"></div>
+      <!-- Target -->
+      <div id="video-target"></div>
+    </div>
 
     <script src="/src/yt-link-player.js"></script>
     <script>
       const player = new YouTubeLinkPlayer({
+        TransitionDuration: 500,
         onVideoShow: (container, link) => {
           console.log("Vidéo affichée !");
         },

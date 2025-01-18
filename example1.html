@@ -3,8 +3,27 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Document</title>
+    <title>Example 1</title>
     <style>
+      :root {
+        --primary: #4d7cff;
+        --secondary: #00d4ff;
+        --accent: #4169e1;
+        --text: #2a3052;
+        --pink: #ff71ce;
+        --pink-light: #ff9ee5;
+        --blue-light: #e6f3ff;
+      }
+
+      body {
+        font-family: "Arial", sans-serif;
+      }
+
+      .container {
+        max-width: 800px;
+        margin: 0 auto;
+      }
+
       .video-container {
         border-radius: 20px;
         box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0, 0, 0, 0.02);
@@ -32,16 +51,73 @@
         box-shadow: 0 6px 12px rgba(0, 0, 0, 0.07),
           0 2px 4px rgba(0, 0, 0, 0.04);
       }
+
+      .video-container {
+        border-radius: 20px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0, 0, 0, 0.02);
+        position: relative;
+        max-width: 100%;
+        overflow: hidden;
+        padding-bottom: 56.25%;
+        text-align: center;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+
+      .video-container:hover {
+        transform: scale(1.005) translateY(-2px);
+        box-shadow: 0 6px 12px rgba(0, 0, 0, 0.07),
+          0 2px 4px rgba(0, 0, 0, 0.04), 0 0 15px rgba(255, 113, 206, 0.2); /* Lueur rose */
+      }
+
+      .video-wrapper {
+        height: 0;
+        overflow: hidden;
+        transition: all 0.5s ease;
+        margin: 0; 
+        opacity: 0;
+      }
+
+      /* .video-hidden .video-container {
+        margin: 0;
+        padding: 0;
+      } */
+
+      .video-wrapper.visible {
+        height: auto;
+        opacity: 1;
+        margin: 20px 0;
+      }
+
+      a {
+        color: var(--primary);
+        text-decoration: none;
+        transition: all 0.3s ease;
+        padding: 5px 15px;
+        border-radius: 20px;
+        background: linear-gradient(to right, transparent 50%, var(--pink) 50%);
+        background-size: 200% 100%;
+        background-position: left bottom;
+        display: inline-block;
+        margin-bottom: 0; /* Supprime la marge en bas des liens */
+      }
+
+      a:hover {
+        background-position: right bottom;
+        color: white;
+        transform: translateY(-2px);
+      }
     </style>
   </head>
   <body>
-    <a href="https://www.youtube.com/watch?v=jJ1Npb1y4ZE" data-yt-link
-      >Voir la vidéo</a
-    >
+    <div class="container">
+      <a href="https://www.youtube.com/watch?v=jJ1Npb1y4ZE" data-yt-link
+        >Voir la vidéo</a
+      >
 
-    <a href="https://www.youtube.com/watch?v=BFMDUokVCRs" data-yt-link>
-      Voir la vidéo en grand format
-    </a>
+      <a href="https://www.youtube.com/watch?v=BFMDUokVCRs" data-yt-link>
+        Voir la vidéo en grand format
+      </a>
+    </div>
 
     <script src="/src/yt-link-player.js"></script>
     <script>
