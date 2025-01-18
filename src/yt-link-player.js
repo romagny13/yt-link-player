@@ -195,31 +195,46 @@ class YouTubeLinkPlayer {
   }
 
   // Méthodes publiques (API publique)
+  // Affiche toutes les vidéos individuelles et la première vidéo de chaque groupe sans vidéo visible
   showAllVideos() {
+    // Affiche toutes les vidéos individuelles
     this._individualVideos.forEach(({ container, videoId }, link) => {
       container.classList.add(this._options.videoVisibleClass);
       this._options.onVideoShow?.(container, link, videoId);
     });
 
+    // Pour chaque groupe
     this._videoGroups.forEach((group) => {
-      group.videos.forEach(({ container, link, videoId }) => {
-        container.classList.add(this._options.videoVisibleClass);
-        this._options.onVideoShow?.(container, link, videoId, group);
-      });
+      if (!group.visibleVideoLink) {
+        // Récupère la première vidéo du groupe
+        const firstVideo = Array.from(group.videos)[0];
+        if (firstVideo) {
+          const { container, link, videoId } = firstVideo;
+          container.classList.add(this._options.videoVisibleClass);
+          this._options.onVideoShow?.(container, link, videoId, group);
+          group.visibleVideoLink = link; // Met à jour la référence de la vidéo visible
+        }
+      }
     });
   }
 
+  // Masque toutes les vidéos et réinitialise les états
   hideAllVideos() {
+    // Masque toutes les vidéos individuelles
     this._individualVideos.forEach(({ container, videoId }, link) => {
       container.classList.remove(this._options.videoVisibleClass);
       this._options.onVideoHide?.(container, link, videoId);
     });
 
+    // Pour chaque groupe
     this._videoGroups.forEach((group) => {
+      // Masque toutes les vidéos du groupe
       group.videos.forEach(({ container, link, videoId }) => {
         container.classList.remove(this._options.videoVisibleClass);
         this._options.onVideoHide?.(container, link, videoId, group);
       });
+      // Réinitialise la référence de la vidéo visible
+      group.visibleVideoLink = null;
     });
   }
 
