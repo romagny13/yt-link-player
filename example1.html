@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Example 1</title>
+    <title>YouTube Link Player - Example 1</title>
     <style>
       :root {
         --primary: #4d7cff;
@@ -73,7 +73,7 @@
         height: 0;
         overflow: hidden;
         transition: all 0.5s ease;
-        margin: 0; 
+        margin: 0;
         opacity: 0;
       }
 
@@ -122,8 +122,11 @@
     <script src="/src/yt-link-player.js"></script>
     <script>
       const player = new YouTubeLinkPlayer({
-        onVideoShow: (container, link) => {
+        onVideoShow: (container, link, videoId, group = null) => {
           console.log("Vidéo affichée !");
+        },
+        onError: (error, link) => {
+          console.log(error);
         },
       });
     </script>
