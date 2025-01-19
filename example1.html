@@ -114,7 +114,11 @@
         >Voir la vidéo 1</a
       >
 
-      <a href="https://www.youtube.com/watch?v=BFMDUokVCRs" data-yt-link>
+      <a
+        href="https://www.youtube.com/watch?v=BFMDUokVCRs"
+        data-yt-link
+        data-autoplay="true"
+      >
         Voir la vidéo 2
       </a>
     </div>
@@ -122,6 +126,8 @@
     <script src="/src/yt-link-player.js"></script>
     <script>
       const player = new YouTubeLinkPlayer({
+        autoPlayOnShow: true,
+        pauseOnHide: true,
         onVideoShow: (container, link, videoId, group = null) => {
           console.log("Vidéo affichée !");
         },

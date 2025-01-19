@@ -1,7 +1,32 @@
+function loadYouTubeAPI() {
+  return new Promise((resolve, reject) => {
+    if (window.YT && YT.Player) {
+      resolve();
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.src = "https://www.youtube.com/iframe_api";
+    script.onload = () => waitForYouTubeAPI(resolve, reject);
+    script.onerror = (err) => reject(err);
+    document.body.appendChild(script);
+  });
+}
+
+function waitForYouTubeAPI(resolve, reject) {
+  const checkInterval = setInterval(() => {
+    if (window.YT && YT.Player) {
+      clearInterval(checkInterval);
+      resolve();
+    }
+  }, 100);
+}
+
 class YouTubeLinkPlayer {
   constructor(options = {}) {
     this._videoGroups = new Map();
     this._individualVideos = new Map();
+    this._players = new Map(); // Stockage des instances YT.Player
     this._options = {
       linkAttribute: "data-yt-link",
       targetAttribute: "data-yt-target",
@@ -14,16 +39,23 @@ class YouTubeLinkPlayer {
       onError: null,
       autoPlayOnShow: false,
       mute: false,
+      pauseOnHide: true,
       rootContainer: null,
       ...options,
     };
+
+    this._isPausedByProg = false;
 
     this._rootElement =
       this._options.rootContainer instanceof HTMLElement
         ? this._options.rootContainer
         : document.querySelector(this._options.rootContainer) || document;
 
-    this._init();
+    loadYouTubeAPI()
+      .then(() => this._init())
+      .catch((error) =>
+        console.error("Erreur lors du chargement de l'API YouTube :", error)
+      );
   }
 
   _init() {
@@ -58,6 +90,39 @@ class YouTubeLinkPlayer {
     }
   }
 
+  _createPlayer(videoId, container, link) {
+    const playerId = `youtube-player-${videoId}-${Date.now()}`;
+    const playerDiv = document.createElement("div");
+    playerDiv.id = playerId;
+    container.appendChild(playerDiv);
+
+    // Configuration du player
+    const playerConfig = {
+      videoId: videoId,
+      playerVars: {
+        enablejsapi: 1,
+        origin: window.location.origin,
+        mute: this._options.mute ? 1 : 0,
+        autoplay: this._shouldAutoPlay(link) ? 1 : 0,
+      },
+      events: {
+        onReady: () => {
+          //  console.log("Player ready:", playerId);
+        },
+      },
+    };
+
+    const player = new YT.Player(playerDiv.id, playerConfig);
+    this._players.set(playerId, player);
+    return playerId;
+  }
+
+  _shouldAutoPlay(link) {
+    if (link.dataset.autoplay === "false") return false;
+    if (link.dataset.autoplay === "true") return true;
+    return this._options.autoPlayOnShow;
+  }
+
   _setupVideoContainer(link, videoId) {
     try {
       const videoWrapper = document.createElement("div");
@@ -85,25 +150,6 @@ class YouTubeLinkPlayer {
         link
       );
     }
-  }
-
-  _getOrCreateIframe(videoId, container) {
-    let iframe = container.querySelector("iframe");
-    if (!iframe) {
-      iframe = document.createElement("iframe");
-      let embedUrl = `https://www.youtube.com/embed/${videoId}?enablejsapi=1`;
-
-      if (this._options.mute) embedUrl += "&mute=1";
-      if (this._options.autoPlayOnShow) embedUrl += "&autoplay=1";
-
-      iframe.src = embedUrl;
-      iframe.allow =
-        "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture";
-      iframe.allowFullscreen = true;
-
-      container.appendChild(iframe);
-    }
-    return iframe;
   }
 
   _setupGroupVideo(link, videoWrapper, videoId, targetId) {
@@ -183,25 +229,42 @@ class YouTubeLinkPlayer {
 
   _showVideoWithDelay(container, link, videoId, duration, group) {
     setTimeout(() => {
-      const videoContainer = container.querySelector(
-        `.${this._options.videoContainerClass}`
-      );
-      this._getOrCreateIframe(videoId, videoContainer);
-      container.classList.add(this._options.videoVisibleClass);
-      this._options.onVideoShow?.(container, link, videoId, group);
+      this._showVideo(container, link, videoId, group);
       if (group) group.visibleVideoLink = link;
     }, duration);
   }
 
   _hideVideo(container, link, videoId, group = null) {
-    const videoContainer = container.querySelector(
-      `.${this._options.videoContainerClass}`
-    );
-    const iframe = videoContainer.querySelector("iframe");
-    if (iframe) {
-      container.classList.remove(this._options.videoVisibleClass);
-      this._options.onVideoHide?.(container, link, videoId, group);
+    const playerId = container.dataset.playerId;
+    if (!playerId) return;
+
+    const player = this._players.get(playerId);
+    if (player && this._options.pauseOnHide) {
+      try {
+        player.pauseVideo();
+      } catch (error) {
+        console.warn("Player not ready yet:", error);
+      }
     }
+
+    container.classList.remove(this._options.videoVisibleClass);
+    this._options.onVideoHide?.(container, link, videoId, group);
+  }
+
+  _showVideo(container, link, videoId, group = null) {
+    let playerId = container.dataset.playerId;
+
+    if (!playerId) {
+      playerId = this._createPlayer(
+        videoId,
+        container.querySelector(`.${this._options.videoContainerClass}`),
+        link
+      );
+      container.dataset.playerId = playerId;
+    }
+
+    container.classList.add(this._options.videoVisibleClass);
+    this._options.onVideoShow?.(container, link, videoId, group);
   }
 
   _toggleVideo(container, link, videoId) {
@@ -209,12 +272,7 @@ class YouTubeLinkPlayer {
       this._options.videoVisibleClass
     );
     if (!isVisible) {
-      const videoContainer = container.querySelector(
-        `.${this._options.videoContainerClass}`
-      );
-      this._getOrCreateIframe(videoId, videoContainer);
-      container.classList.add(this._options.videoVisibleClass);
-      this._options.onVideoShow?.(container, link, videoId);
+      this._showVideo(container, link, videoId);
     } else {
       this._hideVideo(container, link, videoId);
     }
@@ -229,12 +287,7 @@ class YouTubeLinkPlayer {
 
   showAllVideos() {
     this._individualVideos.forEach(({ container, videoId }, link) => {
-      const videoContainer = container.querySelector(
-        `.${this._options.videoContainerClass}`
-      );
-      this._getOrCreateIframe(videoId, videoContainer);
-      container.classList.add(this._options.videoVisibleClass);
-      this._options.onVideoShow?.(container, link, videoId);
+      this._showVideo(container, link, videoId);
     });
 
     this._videoGroups.forEach((group) => {
@@ -242,12 +295,7 @@ class YouTubeLinkPlayer {
         const firstVideo = Array.from(group.videos)[0];
         if (firstVideo) {
           const { container, link, videoId } = firstVideo;
-          const videoContainer = container.querySelector(
-            `.${this._options.videoContainerClass}`
-          );
-          this._getOrCreateIframe(videoId, videoContainer);
-          container.classList.add(this._options.videoVisibleClass);
-          this._options.onVideoShow?.(container, link, videoId, group);
+          this._showVideo(container, link, videoId, group);
           group.visibleVideoLink = link;
         }
       }
@@ -268,6 +316,14 @@ class YouTubeLinkPlayer {
   }
 
   destroy() {
+    this._players.forEach((player, playerId) => {
+      player.destroy();
+      this._players.delete(playerId);
+    });
+
+    this._players.clear();
+
+    // Nettoyer les conteneurs et les liens
     this._individualVideos.forEach(({ container }, link) => {
       container.remove();
       link.dataset.ytProcessed = null;
@@ -280,6 +336,7 @@ class YouTubeLinkPlayer {
       });
     });
 
+    // Vider les maps
     this._videoGroups.clear();
     this._individualVideos.clear();
   }
