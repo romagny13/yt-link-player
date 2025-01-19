@@ -14,16 +14,21 @@ class YouTubeLinkPlayer {
       onError: null,
       autoPlayOnShow: false,
       mute: false,
+      rootContainer: null,
       ...options,
     };
+
+    this._rootElement =
+      this._options.rootContainer instanceof HTMLElement
+        ? this._options.rootContainer
+        : document.querySelector(this._options.rootContainer) || document;
 
     this._init();
   }
 
-  // Méthodes privées avec underscore
   _init() {
     try {
-      const videoLinks = document.querySelectorAll(
+      const videoLinks = this._rootElement.querySelectorAll(
         `a[${this._options.linkAttribute}]`
       );
       videoLinks.forEach(this._processLink.bind(this));
@@ -60,19 +65,7 @@ class YouTubeLinkPlayer {
 
       const videoContainer = document.createElement("div");
       videoContainer.className = this._options.videoContainerClass;
-
-      const iframe = document.createElement("iframe");
-      let embedUrl = `https://www.youtube.com/embed/${videoId}?enablejsapi=1`;
-
-      if (this._options.mute) embedUrl += "&mute=1";
-      if (this._options.autoPlayOnShow) embedUrl += "&autoplay=1";
-
-      iframe.src = embedUrl;
-      iframe.allow =
-        "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture";
-      iframe.allowFullscreen = true;
-
-      videoContainer.appendChild(iframe);
+      videoContainer.dataset.videoId = videoId;
       videoWrapper.appendChild(videoContainer);
 
       const targetId = link.getAttribute(this._options.targetAttribute);
@@ -92,6 +85,25 @@ class YouTubeLinkPlayer {
         link
       );
     }
+  }
+
+  _getOrCreateIframe(videoId, container) {
+    let iframe = container.querySelector("iframe");
+    if (!iframe) {
+      iframe = document.createElement("iframe");
+      let embedUrl = `https://www.youtube.com/embed/${videoId}?enablejsapi=1`;
+
+      if (this._options.mute) embedUrl += "&mute=1";
+      if (this._options.autoPlayOnShow) embedUrl += "&autoplay=1";
+
+      iframe.src = embedUrl;
+      iframe.allow =
+        "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture";
+      iframe.allowFullscreen = true;
+
+      container.appendChild(iframe);
+    }
+    return iframe;
   }
 
   _setupGroupVideo(link, videoWrapper, videoId, targetId) {
@@ -171,6 +183,10 @@ class YouTubeLinkPlayer {
 
   _showVideoWithDelay(container, link, videoId, duration, group) {
     setTimeout(() => {
+      const videoContainer = container.querySelector(
+        `.${this._options.videoContainerClass}`
+      );
+      this._getOrCreateIframe(videoId, videoContainer);
       container.classList.add(this._options.videoVisibleClass);
       this._options.onVideoShow?.(container, link, videoId, group);
       if (group) group.visibleVideoLink = link;
@@ -178,8 +194,14 @@ class YouTubeLinkPlayer {
   }
 
   _hideVideo(container, link, videoId, group = null) {
-    container.classList.remove(this._options.videoVisibleClass);
-    this._options.onVideoHide?.(container, link, videoId, group);
+    const videoContainer = container.querySelector(
+      `.${this._options.videoContainerClass}`
+    );
+    const iframe = videoContainer.querySelector("iframe");
+    if (iframe) {
+      container.classList.remove(this._options.videoVisibleClass);
+      this._options.onVideoHide?.(container, link, videoId, group);
+    }
   }
 
   _toggleVideo(container, link, videoId) {
@@ -187,6 +209,10 @@ class YouTubeLinkPlayer {
       this._options.videoVisibleClass
     );
     if (!isVisible) {
+      const videoContainer = container.querySelector(
+        `.${this._options.videoContainerClass}`
+      );
+      this._getOrCreateIframe(videoId, videoContainer);
       container.classList.add(this._options.videoVisibleClass);
       this._options.onVideoShow?.(container, link, videoId);
     } else {
@@ -194,46 +220,49 @@ class YouTubeLinkPlayer {
     }
   }
 
-  // Méthodes publiques (API publique)
-  // Affiche toutes les vidéos individuelles et la première vidéo de chaque groupe sans vidéo visible
+  initializeContainer(container) {
+    const videoLinks = container.querySelectorAll(
+      `a[${this._options.linkAttribute}]`
+    );
+    videoLinks.forEach(this._processLink.bind(this));
+  }
+
   showAllVideos() {
-    // Affiche toutes les vidéos individuelles
     this._individualVideos.forEach(({ container, videoId }, link) => {
+      const videoContainer = container.querySelector(
+        `.${this._options.videoContainerClass}`
+      );
+      this._getOrCreateIframe(videoId, videoContainer);
       container.classList.add(this._options.videoVisibleClass);
       this._options.onVideoShow?.(container, link, videoId);
     });
 
-    // Pour chaque groupe
     this._videoGroups.forEach((group) => {
       if (!group.visibleVideoLink) {
-        // Récupère la première vidéo du groupe
         const firstVideo = Array.from(group.videos)[0];
         if (firstVideo) {
           const { container, link, videoId } = firstVideo;
+          const videoContainer = container.querySelector(
+            `.${this._options.videoContainerClass}`
+          );
+          this._getOrCreateIframe(videoId, videoContainer);
           container.classList.add(this._options.videoVisibleClass);
           this._options.onVideoShow?.(container, link, videoId, group);
-          group.visibleVideoLink = link; // Met à jour la référence de la vidéo visible
+          group.visibleVideoLink = link;
         }
       }
     });
   }
 
-  // Masque toutes les vidéos et réinitialise les états
   hideAllVideos() {
-    // Masque toutes les vidéos individuelles
     this._individualVideos.forEach(({ container, videoId }, link) => {
-      container.classList.remove(this._options.videoVisibleClass);
-      this._options.onVideoHide?.(container, link, videoId);
+      this._hideVideo(container, link, videoId);
     });
 
-    // Pour chaque groupe
     this._videoGroups.forEach((group) => {
-      // Masque toutes les vidéos du groupe
       group.videos.forEach(({ container, link, videoId }) => {
-        container.classList.remove(this._options.videoVisibleClass);
-        this._options.onVideoHide?.(container, link, videoId, group);
+        this._hideVideo(container, link, videoId, group);
       });
-      // Réinitialise la référence de la vidéo visible
       group.visibleVideoLink = null;
     });
   }
