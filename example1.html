@@ -110,23 +110,28 @@
   </head>
   <body>
     <div class="container">
-      <a href="https://www.youtube.com/watch?v=jJ1Npb1y4ZE" data-yt-link
+      <a href="https://www.youtube.com/watch?v=jJ1Npb1y4ZE" data-yt-link data-autoplay="true"
         >Voir la vidéo 1</a
       >
 
       <a
         href="https://www.youtube.com/watch?v=BFMDUokVCRs"
         data-yt-link
-        data-autoplay="true"
       >
         Voir la vidéo 2
       </a>
+
+      <a
+      href="https://www.youtube.com/watch?v=y897tozJeg8"  data-yt-link data-autoplay="true" data-auto-reset
+    >
+      Voir la vidéo 3
+    </a>
     </div>
 
     <script src="/src/yt-link-player.js"></script>
     <script>
       const player = new YouTubeLinkPlayer({
-        autoPlayOnShow: true,
+       // autoPlayOnShow: true,
         pauseOnHide: true,
         onVideoShow: (container, link, videoId, group = null) => {
           console.log("Vidéo affichée !");

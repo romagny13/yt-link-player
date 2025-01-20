@@ -26,7 +26,7 @@ class YouTubeLinkPlayer {
   constructor(options = {}) {
     this._videoGroups = new Map();
     this._individualVideos = new Map();
-    this._players = new Map(); // Stockage des instances YT.Player
+    this._players = new Map();
     this._options = {
       linkAttribute: "data-yt-link",
       targetAttribute: "data-yt-target",
@@ -40,11 +40,10 @@ class YouTubeLinkPlayer {
       autoPlayOnShow: false,
       mute: false,
       pauseOnHide: true,
+      autoReset: false, // Nouvelle option
       rootContainer: null,
       ...options,
     };
-
-    this._isPausedByProg = false;
 
     this._rootElement =
       this._options.rootContainer instanceof HTMLElement
@@ -261,10 +260,36 @@ class YouTubeLinkPlayer {
         link
       );
       container.dataset.playerId = playerId;
+    } else {
+      const player = this._players.get(playerId);
+
+      const shouldReset = this._shouldReset(link);
+
+      if (shouldReset && player) {
+        try {
+          player.seekTo(0, true);
+          if (this._shouldAutoPlay(link)) {
+            player.playVideo();
+          }
+        } catch (error) {
+          console.warn("Couldn't reset video:", error);
+        }
+      }
     }
 
     container.classList.add(this._options.videoVisibleClass);
     this._options.onVideoShow?.(container, link, videoId, group);
+  }
+
+  _shouldReset(link) {
+    // Si l'attribut data-auto-reset existe sur le lien
+    if (link.hasAttribute("data-auto-reset")) {
+      // On vérifie sa valeur explicite
+      const resetValue = link.getAttribute("data-auto-reset").toLowerCase();
+      return resetValue === "true" || resetValue === "";
+    }
+    // Sinon on utilise l'option globale
+    return this._options.autoReset;
   }
 
   _toggleVideo(container, link, videoId) {
