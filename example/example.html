@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <title>YouTube Link Player Demo</title>
+    <style>
+      /* Styles généraux */
+      body {
+        font-family: system-ui, -apple-system, sans-serif;
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 20px;
+        line-height: 1.6;
+      }
+
+      .section {
+        margin: 40px 0;
+        padding: 20px;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+      }
+
+      button {
+        padding: 8px 16px;
+        margin: 0 8px;
+        cursor: pointer;
+        background: #0070f3;
+        color: white;
+        border: none;
+        border-radius: 4px;
+      }
+
+      button:hover {
+        background: #0051b3;
+      }
+
+      h2 {
+        color: #333;
+        margin-bottom: 1rem;
+      }
+
+      /* Styles utiles pour le plugin */
+      .video-wrapper {
+        height: 0;
+        overflow: hidden;
+        padding-bottom: 0;
+        position: relative;
+        opacity: 0;
+        transform: translateY(-20px);
+        transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+
+      .video-wrapper.visible {
+        height: auto;
+        opacity: 1;
+        transform: translateY(0);
+        padding-bottom: 56.25%; /* 16:9 aspect ratio */
+        margin: 20px 0;
+      }
+
+      .video-container {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+      }
+
+      .video-container iframe {
+        width: 100%;
+        height: 100%;
+        border: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>YouTube Link Player Demo</h1>
+
+    <div class="section">
+      <h2>1. Vidéo Simple</h2>
+      <p>Cliquez sur le lien pour afficher/masquer la vidéo :</p>
+      <a href="https://www.youtube.com/watch?v=jJ1Npb1y4ZE" data-yt-link
+        >Vidéo simple</a
+      >
+    </div>
+
+    <div class="section">
+      <h2>2. Groupe de Vidéos</h2>
+      <p>
+        Cliquez sur différents liens pour changer de vidéo dans le même
+        conteneur :
+      </p>
+      <a
+        href="https://www.youtube.com/watch?v=jJ1Npb1y4ZE"
+        data-yt-link
+        data-yt-target="group1"
+        >Vidéo 1</a
+      >
+      <a
+        href="https://www.youtube.com/watch?v=BFMDUokVCRs"
+        data-yt-link
+        data-yt-target="group1"
+        >Vidéo 2</a
+      >
+      <a
+        href="https://www.youtube.com/watch?v=y897tozJeg8"
+        data-yt-link
+        data-yt-target="group1"
+        >Vidéo 3</a
+      >
+      <div id="group1"></div>
+    </div>
+
+    <div class="section">
+      <h2>3. Vidéo avec Autoplay</h2>
+      <p>Cette vidéo se lance automatiquement à l'affichage :</p>
+      <a
+        href="https://www.youtube.com/watch?v=jJ1Npb1y4ZE"
+        data-yt-link
+        data-autoplay="true"
+        >Vidéo avec autoplay</a
+      >
+    </div>
+
+    <div class="section">
+      <h2>4. Vidéo avec Auto Reset + Autoplay</h2>
+      <p>Cette vidéo redémarre du début à chaque clic :</p>
+      <a
+        href="https://www.youtube.com/watch?v=y897tozJeg8"
+        data-yt-link
+        data-auto-reset="true"
+        data-autoplay="true"
+        >Vidéo avec auto reset et autoplay</a
+      >
+    </div>
+
+    <div class="section">
+      <h2>5. Groupe avec Show on Init</h2>
+      <p>Ce groupe affiche la première vidéo au chargement :</p>
+      <a
+        href="https://www.youtube.com/watch?v=jJ1Npb1y4ZE"
+        data-yt-link
+        data-yt-target="group2"
+        data-show-on-init="true"
+        >Vidéo 1 (affichée au départ)</a
+      >
+      <a
+        href="https://www.youtube.com/watch?v=BFMDUokVCRs"
+        data-yt-link
+        data-yt-target="group2"
+        >Vidéo 2</a
+      >
+      <div id="group2"></div>
+    </div>
+
+    <div class="section">
+      <h2>6. Contrôles Globaux</h2>
+      <div class="controls">
+        <button onclick="player.showAllVideos()">
+          Afficher Toutes les Vidéos
+        </button>
+        <button onclick="player.hideAllVideos()">
+          Masquer Toutes les Vidéos
+        </button>
+        <button onclick="player.destroy()">Détruire le Player</button>
+      </div>
+    </div>
+
+    <script src="../src/yt-link-player.js"></script>
+    <script>
+      const player = new YouTubeLinkPlayer({
+        onVideoShow: (container, link, videoId, group = null) => {
+          console.log(
+            `Vidéo ${videoId} affichée${
+              group ? ` dans le groupe ${group.id}` : ""
+            }`
+          );
+        },
+        onVideoHide: (container, link, videoId, group = null) => {
+          console.log(
+            `Vidéo ${videoId} masquée${
+              group ? ` dans le groupe ${group.id}` : ""
+            }`
+          );
+        },
+        onError: (error, link) => {
+          console.log(error);
+        }
+      });
+    </script>
+  </body>
+</html>

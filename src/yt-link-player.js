@@ -40,7 +40,8 @@ class YouTubeLinkPlayer {
       autoPlayOnShow: false,
       mute: false,
       pauseOnHide: true,
-      autoReset: false, // Nouvelle option
+      autoReset: false,
+      showOnInit: false, // Nouvelle option
       rootContainer: null,
       ...options,
     };
@@ -51,7 +52,10 @@ class YouTubeLinkPlayer {
         : document.querySelector(this._options.rootContainer) || document;
 
     loadYouTubeAPI()
-      .then(() => this._init())
+      .then(() => {
+        this._init();
+        this._handleInitialDisplay(); // Nouvelle étape d'initialisation
+      })
       .catch((error) =>
         console.error("Erreur lors du chargement de l'API YouTube :", error)
       );
@@ -95,7 +99,6 @@ class YouTubeLinkPlayer {
     playerDiv.id = playerId;
     container.appendChild(playerDiv);
 
-    // Configuration du player
     const playerConfig = {
       videoId: videoId,
       playerVars: {
@@ -106,7 +109,7 @@ class YouTubeLinkPlayer {
       },
       events: {
         onReady: () => {
-          //  console.log("Player ready:", playerId);
+          //console.log("Player ready:", playerId);
         },
       },
     };
@@ -282,13 +285,10 @@ class YouTubeLinkPlayer {
   }
 
   _shouldReset(link) {
-    // Si l'attribut data-auto-reset existe sur le lien
     if (link.hasAttribute("data-auto-reset")) {
-      // On vérifie sa valeur explicite
       const resetValue = link.getAttribute("data-auto-reset").toLowerCase();
       return resetValue === "true" || resetValue === "";
     }
-    // Sinon on utilise l'option globale
     return this._options.autoReset;
   }
 
@@ -301,6 +301,48 @@ class YouTubeLinkPlayer {
     } else {
       this._hideVideo(container, link, videoId);
     }
+  }
+
+  _handleInitialDisplay() {
+    // Gestion des vidéos individuelles
+    this._individualVideos.forEach(({ container, videoId }, link) => {
+      if (this._shouldShowOnInit(link)) {
+        this._showVideo(container, link, videoId);
+      }
+    });
+
+    // Gestion des groupes
+    this._videoGroups.forEach((group) => {
+      let videoToShow = null;
+
+      // Chercher d'abord une vidéo marquée comme initiale dans le groupe
+      for (const video of group.videos) {
+        if (this._shouldShowOnInit(video.link)) {
+          videoToShow = video;
+          break;
+        }
+      }
+
+      // Si aucune vidéo n'est marquée mais que l'option globale est activée, prendre la première
+      if (!videoToShow && this._options.showOnInit) {
+        videoToShow = Array.from(group.videos)[0];
+      }
+
+      if (videoToShow) {
+        this._showVideo(videoToShow.container, videoToShow.link, videoToShow.videoId, group);
+        group.visibleVideoLink = videoToShow.link;
+      }
+    });
+  }
+
+  _shouldShowOnInit(link) {
+    // Vérifier d'abord l'attribut sur le lien
+    if (link.hasAttribute('data-show-on-init')) {
+      const showValue = link.getAttribute('data-show-on-init').toLowerCase();
+      return showValue === 'true' || showValue === '';
+    }
+    // Sinon, utiliser l'option globale
+    return this._options.showOnInit;
   }
 
   initializeContainer(container) {
@@ -348,7 +390,6 @@ class YouTubeLinkPlayer {
 
     this._players.clear();
 
-    // Nettoyer les conteneurs et les liens
     this._individualVideos.forEach(({ container }, link) => {
       container.remove();
       link.dataset.ytProcessed = null;
@@ -361,7 +402,6 @@ class YouTubeLinkPlayer {
       });
     });
 
-    // Vider les maps
     this._videoGroups.clear();
     this._individualVideos.clear();
   }
