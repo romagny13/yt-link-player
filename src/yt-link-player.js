@@ -41,7 +41,7 @@ class YouTubeLinkPlayer {
       mute: false,
       pauseOnHide: true,
       autoReset: false,
-      showOnInit: false, // Nouvelle option
+      showOnInit: false,
       rootContainer: null,
       ...options,
     };
@@ -54,7 +54,7 @@ class YouTubeLinkPlayer {
     loadYouTubeAPI()
       .then(() => {
         this._init();
-        this._handleInitialDisplay(); // Nouvelle étape d'initialisation
+        this._handleInitialDisplay();
       })
       .catch((error) =>
         console.error("Erreur lors du chargement de l'API YouTube :", error)
@@ -74,33 +74,40 @@ class YouTubeLinkPlayer {
 
   _processLink(link) {
     if (link.dataset.ytProcessed) return;
-    const videoId = this._extractVideoId(link.href);
-    if (videoId) {
-      this._setupVideoContainer(link, videoId);
+
+    const videoData = this._extractVideoData(link.href);
+    if (videoData) {
+      this._setupVideoContainer(link, videoData);
       link.dataset.ytProcessed = "true";
     }
   }
 
-  _extractVideoId(url) {
+  _extractVideoData(url) {
     try {
-      const regex =
-        /(?:youtu\.be\/|youtube\.com(?:\/embed\/|\/v\/|\/watch\?v=|\/user\/\S+|\/ytscreeningroom\?v=|\/sandalsResorts#\w\/\w\/.*\/))([^\/&\?]{10,12})/;
-      const match = url.match(regex);
-      return match ? match[1] : null;
+      const videoRegex = /(?:youtu\.be\/|youtube\.com\/.*[?&]v=)([^&]+)/;
+      const playlistRegex = /[?&]list=([^&]+)/;
+
+      const videoMatch = url.match(videoRegex);
+      const playlistMatch = url.match(playlistRegex);
+
+      return {
+        videoId: videoMatch ? videoMatch[1] : null,
+        playlistId: playlistMatch ? playlistMatch[1] : null,
+      };
     } catch (error) {
-      this._options.onError?.(`Failed to extract video ID: ${error.message}`);
+      this._options.onError?.(`Failed to extract video data: ${error.message}`);
       return null;
     }
   }
 
-  _createPlayer(videoId, container, link) {
-    const playerId = `youtube-player-${videoId}-${Date.now()}`;
+  _createPlayer(videoData, container, link) {
+    const playerId = `youtube-player-${videoData.videoId}-${Date.now()}`;
     const playerDiv = document.createElement("div");
     playerDiv.id = playerId;
     container.appendChild(playerDiv);
 
     const playerConfig = {
-      videoId: videoId,
+      videoId: videoData.videoId,
       playerVars: {
         enablejsapi: 1,
         origin: window.location.origin,
@@ -109,10 +116,14 @@ class YouTubeLinkPlayer {
       },
       events: {
         onReady: () => {
-          //console.log("Player ready:", playerId);
+          // Player ready
         },
       },
     };
+
+    if (videoData.playlistId) {
+      playerConfig.playerVars.list = videoData.playlistId;
+    }
 
     const player = new YT.Player(playerDiv.id, playerConfig);
     this._players.set(playerId, player);
@@ -125,21 +136,24 @@ class YouTubeLinkPlayer {
     return this._options.autoPlayOnShow;
   }
 
-  _setupVideoContainer(link, videoId) {
+  _setupVideoContainer(link, videoData) {
     try {
       const videoWrapper = document.createElement("div");
       videoWrapper.classList.add(this._options.videoWrapperClass);
 
       const videoContainer = document.createElement("div");
       videoContainer.className = this._options.videoContainerClass;
-      videoContainer.dataset.videoId = videoId;
+      videoContainer.dataset.videoId = videoData.videoId;
+      if (videoData.playlistId) {
+        videoContainer.dataset.playlistId = videoData.playlistId;
+      }
       videoWrapper.appendChild(videoContainer);
 
       const targetId = link.getAttribute(this._options.targetAttribute);
       if (targetId) {
-        this._setupGroupVideo(link, videoWrapper, videoId, targetId);
+        this._setupGroupVideo(link, videoWrapper, videoData, targetId);
       } else {
-        this._setupIndividualVideo(link, videoWrapper, videoId);
+        this._setupIndividualVideo(link, videoWrapper, videoData);
       }
 
       link.addEventListener("click", (e) => {
@@ -154,7 +168,7 @@ class YouTubeLinkPlayer {
     }
   }
 
-  _setupGroupVideo(link, videoWrapper, videoId, targetId) {
+  _setupGroupVideo(link, videoWrapper, videoData, targetId) {
     const targetContainer = document.getElementById(targetId);
     if (targetContainer) {
       if (!this._videoGroups.has(targetId)) {
@@ -166,7 +180,7 @@ class YouTubeLinkPlayer {
       }
       this._videoGroups
         .get(targetId)
-        .videos.add({ link, container: videoWrapper, videoId });
+        .videos.add({ link, container: videoWrapper, videoData });
       targetContainer.appendChild(videoWrapper);
     } else {
       this._options.onError?.(
@@ -176,35 +190,28 @@ class YouTubeLinkPlayer {
     }
   }
 
-  _setupIndividualVideo(link, videoWrapper, videoId) {
-    this._individualVideos.set(link, { container: videoWrapper, videoId });
+  _setupIndividualVideo(link, videoWrapper, videoData) {
+    this._individualVideos.set(link, { container: videoWrapper, videoData });
     link.parentNode.insertBefore(videoWrapper, link.nextSibling);
   }
 
   _handleVideoClick(clickedLink) {
-    try {
-      const targetId = clickedLink.getAttribute(this._options.targetAttribute);
-      if (targetId) {
-        this._handleGroupVideo(clickedLink, targetId);
-      } else {
-        this._handleIndividualVideo(clickedLink);
-      }
-    } catch (error) {
-      this._options.onError?.(
-        `Failed to handle video click: ${error.message}`,
-        clickedLink
-      );
+    const targetId = clickedLink.getAttribute(this._options.targetAttribute);
+    if (targetId) {
+      this._handleGroupVideo(clickedLink, targetId);
+    } else {
+      this._handleIndividualVideo(clickedLink);
     }
   }
 
   _handleGroupVideo(clickedLink, targetId) {
     const group = this._videoGroups.get(targetId);
     if (group) {
-      group.videos.forEach(({ link, container, videoId }) => {
+      group.videos.forEach(({ link, container, videoData }) => {
         if (link === clickedLink) {
-          this._toggleVisibility(group, link, container, videoId);
+          this._toggleVisibility(group, link, container, videoData);
         } else {
-          this._hideVideo(container, link, videoId, group);
+          this._hideVideo(container, link, videoData, group);
         }
       });
     }
@@ -213,30 +220,30 @@ class YouTubeLinkPlayer {
   _handleIndividualVideo(clickedLink) {
     const videoData = this._individualVideos.get(clickedLink);
     if (videoData) {
-      this._toggleVideo(videoData.container, clickedLink, videoData.videoId);
+      this._toggleVideo(videoData.container, clickedLink, videoData.videoData);
     }
   }
 
-  _toggleVisibility(group, link, container, videoId) {
+  _toggleVisibility(group, link, container, videoData) {
     if (group.visibleVideoLink === link) {
-      this._hideVideo(container, link, videoId, group);
+      this._hideVideo(container, link, videoData, group);
       group.visibleVideoLink = null;
     } else {
       const duration = group.visibleVideoLink
         ? this._options.transitionDuration
         : 0;
-      this._showVideoWithDelay(container, link, videoId, duration, group);
+      this._showVideoWithDelay(container, link, videoData, duration, group);
     }
   }
 
-  _showVideoWithDelay(container, link, videoId, duration, group) {
+  _showVideoWithDelay(container, link, videoData, duration, group) {
     setTimeout(() => {
-      this._showVideo(container, link, videoId, group);
+      this._showVideo(container, link, videoData, group);
       if (group) group.visibleVideoLink = link;
     }, duration);
   }
 
-  _hideVideo(container, link, videoId, group = null) {
+  _hideVideo(container, link, videoData, group = null) {
     const playerId = container.dataset.playerId;
     if (!playerId) return;
 
@@ -250,15 +257,15 @@ class YouTubeLinkPlayer {
     }
 
     container.classList.remove(this._options.videoVisibleClass);
-    this._options.onVideoHide?.(container, link, videoId, group);
+    this._options.onVideoHide?.(container, link, videoData, group);
   }
 
-  _showVideo(container, link, videoId, group = null) {
+  _showVideo(container, link, videoData, group = null) {
     let playerId = container.dataset.playerId;
 
     if (!playerId) {
       playerId = this._createPlayer(
-        videoId,
+        videoData,
         container.querySelector(`.${this._options.videoContainerClass}`),
         link
       );
@@ -281,7 +288,7 @@ class YouTubeLinkPlayer {
     }
 
     container.classList.add(this._options.videoVisibleClass);
-    this._options.onVideoShow?.(container, link, videoId, group);
+    this._options.onVideoShow?.(container, link, videoData, group);
   }
 
   _shouldReset(link) {
@@ -292,22 +299,81 @@ class YouTubeLinkPlayer {
     return this._options.autoReset;
   }
 
-  _toggleVideo(container, link, videoId) {
+  _toggleVideo(container, link, videoData) {
     const isVisible = container.classList.contains(
       this._options.videoVisibleClass
     );
     if (!isVisible) {
-      this._showVideo(container, link, videoId);
+      this._showVideo(container, link, videoData);
     } else {
-      this._hideVideo(container, link, videoId);
+      this._hideVideo(container, link, videoData);
     }
+  }
+
+  initializeContainer(container) {
+    const videoLinks = container.querySelectorAll(
+      `a[${this._options.linkAttribute}]`
+    );
+    videoLinks.forEach(this._processLink.bind(this));
+  }
+
+  showAllVideos() {
+    this._individualVideos.forEach(({ container, videoData }, link) => {
+      this._showVideo(container, link, videoData);
+    });
+
+    this._videoGroups.forEach((group) => {
+      if (!group.visibleVideoLink) {
+        const firstVideo = Array.from(group.videos)[0];
+        this._showVideo(
+          firstVideo.container,
+          firstVideo.link,
+          firstVideo.videoData,
+          group
+        );
+        group.visibleVideoLink = firstVideo.link;
+      }
+    });
+  }
+
+  hideAllVideos() {
+    this._individualVideos.forEach(({ container, videoData }, link) => {
+      this._hideVideo(container, link, videoData);
+    });
+
+    this._videoGroups.forEach((group) => {
+      if (group.visibleVideoLink) {
+        const visibleVideo = Array.from(group.videos).find(
+          ({ link }) => link === group.visibleVideoLink
+        );
+        if (visibleVideo) {
+          this._hideVideo(
+            visibleVideo.container,
+            visibleVideo.link,
+            visibleVideo.videoData,
+            group
+          );
+        }
+        group.visibleVideoLink = null;
+      }
+    });
+  }
+
+  _shouldShowOnInit(link) {
+    // Vérifier d'abord l'attribut sur le lien
+    if (link.hasAttribute("data-show-on-init")) {
+      const showValue = link.getAttribute("data-show-on-init").toLowerCase();
+      return showValue === "true" || showValue === "";
+    }
+    // Sinon, utiliser l'option globale
+    return this._options.showOnInit;
   }
 
   _handleInitialDisplay() {
     // Gestion des vidéos individuelles
-    this._individualVideos.forEach(({ container, videoId }, link) => {
+    this._individualVideos.forEach(({ container, videoData }, link) => {
       if (this._shouldShowOnInit(link)) {
-        this._showVideo(container, link, videoId);
+        this._showVideo(container, link, videoData);
       }
     });
 
@@ -329,80 +395,21 @@ class YouTubeLinkPlayer {
       }
 
       if (videoToShow) {
-        this._showVideo(videoToShow.container, videoToShow.link, videoToShow.videoId, group);
+        this._showVideo(
+          videoToShow.container,
+          videoToShow.link,
+          videoToShow.videoData,
+          group
+        );
         group.visibleVideoLink = videoToShow.link;
       }
     });
   }
 
-  _shouldShowOnInit(link) {
-    // Vérifier d'abord l'attribut sur le lien
-    if (link.hasAttribute('data-show-on-init')) {
-      const showValue = link.getAttribute('data-show-on-init').toLowerCase();
-      return showValue === 'true' || showValue === '';
-    }
-    // Sinon, utiliser l'option globale
-    return this._options.showOnInit;
-  }
-
-  initializeContainer(container) {
-    const videoLinks = container.querySelectorAll(
-      `a[${this._options.linkAttribute}]`
-    );
-    videoLinks.forEach(this._processLink.bind(this));
-  }
-
-  showAllVideos() {
-    this._individualVideos.forEach(({ container, videoId }, link) => {
-      this._showVideo(container, link, videoId);
-    });
-
-    this._videoGroups.forEach((group) => {
-      if (!group.visibleVideoLink) {
-        const firstVideo = Array.from(group.videos)[0];
-        if (firstVideo) {
-          const { container, link, videoId } = firstVideo;
-          this._showVideo(container, link, videoId, group);
-          group.visibleVideoLink = link;
-        }
-      }
-    });
-  }
-
-  hideAllVideos() {
-    this._individualVideos.forEach(({ container, videoId }, link) => {
-      this._hideVideo(container, link, videoId);
-    });
-
-    this._videoGroups.forEach((group) => {
-      group.videos.forEach(({ container, link, videoId }) => {
-        this._hideVideo(container, link, videoId, group);
-      });
-      group.visibleVideoLink = null;
-    });
-  }
-
-  destroy() {
-    this._players.forEach((player, playerId) => {
-      player.destroy();
-      this._players.delete(playerId);
-    });
-
-    this._players.clear();
-
-    this._individualVideos.forEach(({ container }, link) => {
-      container.remove();
-      link.dataset.ytProcessed = null;
-    });
-
-    this._videoGroups.forEach((group) => {
-      group.videos.forEach(({ container, link }) => {
-        container.remove();
-        link.dataset.ytProcessed = null;
-      });
-    });
-
-    this._videoGroups.clear();
-    this._individualVideos.clear();
+  getPlayer(container) {
+    const playerId = container.dataset.playerId;
+    return this._players.get(playerId);
   }
 }
+
+window.YouTubeLinkPlayer = YouTubeLinkPlayer;

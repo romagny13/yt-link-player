@@ -154,7 +154,20 @@
     </div>
 
     <div class="section">
-      <h2>6. Contrôles Globaux</h2>
+      <h2>6. Playlist</h2>
+      <p>Cela affiche une playlist :</p>
+      <a
+        href="https://www.youtube.com/watch?v=M0mcRWjGiqY&list=PL0FFFA5C20A9581E8"
+        data-yt-link
+        data-yt-target="group3"
+        data-autoplay="true"
+        >Playlist 1</a
+      >
+      <div id="group3"></div>
+    </div>
+
+    <div class="section">
+      <h2>7. Contrôles Globaux</h2>
       <div class="controls">
         <button onclick="player.showAllVideos()">
           Afficher Toutes les Vidéos
@@ -166,7 +179,7 @@
       </div>
     </div>
 
-    <script src="../src/yt-link-player.js"></script>
+    <script src="../src/yt-link-player.dev.js"></script>
     <script>
       const player = new YouTubeLinkPlayer({
         onVideoShow: (container, link, videoId, group = null) => {
