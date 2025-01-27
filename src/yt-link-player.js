@@ -29,7 +29,7 @@ function getThumbnailUrl(youtubeUrl) {
 
   if (videoIdMatch) {
     // C'est une vidéo, retourner l'URL de la miniature
-    return `https://img.youtube.com/vi/${videoIdMatch[1]}/maxresdefault.jpg`;
+    return `https://img.youtube.com/vi/${videoIdMatch[1]}/hqdefault.jpg`;
   }
   return null;
 }
@@ -101,7 +101,6 @@ class YouTubeLinkPlayer {
       link.dataset.ytProcessed = "true";
     }
   }
-
   _addPreviewTooltip(link) {
     const thumbnailUrl = getThumbnailUrl(link.href);
     if (!thumbnailUrl) {
@@ -115,15 +114,16 @@ class YouTubeLinkPlayer {
     tooltip.classList.add("yt-preview-tooltip");
     tooltip.style.position = "absolute";
     tooltip.style.display = "none";
-    tooltip.style.backgroundSize = "contain";
+    tooltip.style.backgroundSize = "cover"; // Utilisation de "cover" pour s'assurer que l'image occupe toute la surface du tooltip
     tooltip.style.backgroundPosition = "center";
     tooltip.style.backgroundRepeat = "no-repeat";
-    tooltip.style.width = "400px";
-    tooltip.style.height = "225px";
+    tooltip.style.width = "480px"; // Largeur typique d'une image 'hqdefault'
+    tooltip.style.height = "360px"; // Hauteur typique d'une image 'hqdefault'
     tooltip.style.border = "8px solid white";
     tooltip.style.borderRadius = "8px";
     tooltip.style.boxShadow = "0 4px 8px rgba(0, 0, 0, 0.4)";
     tooltip.style.transition = "all 0.3s ease";
+    tooltip.style.zIndex = "9999"; // Assurer que le tooltip soit au-dessus des autres éléments
     document.body.appendChild(tooltip);
 
     link.addEventListener("mouseenter", (e) => {
