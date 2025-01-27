@@ -105,7 +105,9 @@ class YouTubeLinkPlayer {
   _addPreviewTooltip(link) {
     const thumbnailUrl = getThumbnailUrl(link.href);
     if (!thumbnailUrl) {
-      console.warn(`Image preview not found for '${link.href}'`);
+      console.warn(
+        `No image preview found for the YouTube link '${link.href}'. This may be due to an unavailable thumbnail or a default image being used.`
+      );
       return;
     }
 
@@ -113,22 +115,26 @@ class YouTubeLinkPlayer {
     tooltip.classList.add("yt-preview-tooltip");
     tooltip.style.position = "absolute";
     tooltip.style.display = "none";
-    tooltip.style.backgroundSize = "cover"; 
-    tooltip.style.backgroundPosition = "center"; 
+    tooltip.style.backgroundSize = "contain";
+    tooltip.style.backgroundPosition = "center";
     tooltip.style.backgroundRepeat = "no-repeat";
-    tooltip.style.width = "200px";
-    tooltip.style.height = "113px";
+    tooltip.style.width = "400px";
+    tooltip.style.height = "225px";
+    tooltip.style.border = "8px solid white";
+    tooltip.style.borderRadius = "8px";
+    tooltip.style.boxShadow = "0 4px 8px rgba(0, 0, 0, 0.4)";
+    tooltip.style.transition = "all 0.3s ease";
     document.body.appendChild(tooltip);
 
     link.addEventListener("mouseenter", (e) => {
-        tooltip.style.backgroundImage = `url(${thumbnailUrl})`;
-        tooltip.style.left = `${e.pageX + 10}px`;
-        tooltip.style.top = `${e.pageY + 10}px`;
-        tooltip.style.display = "block";
+      tooltip.style.backgroundImage = `url(${thumbnailUrl})`;
+      tooltip.style.left = `${e.pageX + 10}px`;
+      tooltip.style.top = `${e.pageY + 10}px`;
+      tooltip.style.display = "block";
     });
 
     link.addEventListener("mouseleave", () => {
-      tooltip.style.display = "none"; 
+      tooltip.style.display = "none";
     });
   }
 
