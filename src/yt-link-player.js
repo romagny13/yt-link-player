@@ -22,6 +22,18 @@ function waitForYouTubeAPI(resolve, reject) {
   }, 100);
 }
 
+function getThumbnailUrl(youtubeUrl) {
+  const videoIdMatch = youtubeUrl.match(
+    /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]*\/\S+\/|(?:v|e(?:mbed)?)\/|(?:.*?[?&]v=)|(?:.*?[?&]list=))([^"&?\/\s]{11}))/
+  );
+
+  if (videoIdMatch) {
+    // C'est une vidéo, retourner l'URL de la miniature
+    return `https://img.youtube.com/vi/${videoIdMatch[1]}/maxresdefault.jpg`;
+  }
+  return null;
+}
+
 class YouTubeLinkPlayer {
   constructor(options = {}) {
     this._videoGroups = new Map();
@@ -43,6 +55,7 @@ class YouTubeLinkPlayer {
       autoReset: false,
       showOnInit: false,
       rootContainer: null,
+      showPreviewOnHover: false, // Option pour afficher l'aperçu
       ...options,
     };
 
@@ -78,8 +91,45 @@ class YouTubeLinkPlayer {
     const videoData = this._extractVideoData(link.href);
     if (videoData) {
       this._setupVideoContainer(link, videoData);
+      if (
+        link.dataset.showPreview === "true" ||
+        (this._options.showPreviewOnHover &&
+          link.dataset.showPreview !== "false")
+      ) {
+        this._addPreviewTooltip(link);
+      }
       link.dataset.ytProcessed = "true";
     }
+  }
+
+  _addPreviewTooltip(link) {
+    const thumbnailUrl = getThumbnailUrl(link.href);
+    if (!thumbnailUrl) {
+      console.warn(`Image preview not found for '${link.href}'`);
+      return;
+    }
+
+    const tooltip = document.createElement("div");
+    tooltip.classList.add("yt-preview-tooltip");
+    tooltip.style.position = "absolute";
+    tooltip.style.display = "none";
+    tooltip.style.backgroundSize = "cover"; 
+    tooltip.style.backgroundPosition = "center"; 
+    tooltip.style.backgroundRepeat = "no-repeat";
+    tooltip.style.width = "200px";
+    tooltip.style.height = "113px";
+    document.body.appendChild(tooltip);
+
+    link.addEventListener("mouseenter", (e) => {
+        tooltip.style.backgroundImage = `url(${thumbnailUrl})`;
+        tooltip.style.left = `${e.pageX + 10}px`;
+        tooltip.style.top = `${e.pageY + 10}px`;
+        tooltip.style.display = "block";
+    });
+
+    link.addEventListener("mouseleave", () => {
+      tooltip.style.display = "none"; 
+    });
   }
 
   _extractVideoData(url) {
