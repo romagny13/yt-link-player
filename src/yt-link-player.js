@@ -1,3 +1,32 @@
+const DEFAULT_OPTIONS = {
+  linkAttribute: "data-yt-link",
+  targetAttribute: "data-yt-target",
+  videoVisibleClass: "visible",
+  videoWrapperClass: "video-wrapper",
+  videoContainerClass: "video-container",
+  transitionDuration: 500,
+  onVideoShow: null,
+  onVideoHide: null,
+  onError: null,
+  autoPlayOnShow: false,
+  mute: false,
+  pauseOnHide: true,
+  autoReset: false,
+  showOnInit: false,
+  rootContainer: null,
+  showPreviewOnHover: false,
+  tooltipDelay: 300,
+  tooltipDefaultWidth: 480,
+  tooltipDefaultHeight: 270,
+  tooltipZoomEffect: true,
+  tooltipMobileWidth: "90vw",
+  tooltipMobileHeight: "auto",
+  tooltipMobilePosition: "center", // 'top', 'center', 'bottom'
+  tooltipMobileTimeout: 3000,
+  tooltipFallbackImage:
+    "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDgwIiBoZWlnaHQ9IjI3MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjMWExYTFhIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtc2l6ZT0iMTQiIGZpbGw9IiNmZmYiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj5JbWFnZSBub24gZGlzcG9uaWJsZTwvdGV4dD48L3N2Zz4="
+};
+
 function loadYouTubeAPI() {
   return new Promise((resolve, reject) => {
     if (window.YT && YT.Player) {
@@ -22,42 +51,22 @@ function waitForYouTubeAPI(resolve, reject) {
   }, 100);
 }
 
-function getThumbnailUrl(youtubeUrl) {
-  const videoIdMatch = youtubeUrl.match(
-    /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]*\/\S+\/|(?:v|e(?:mbed)?)\/|(?:.*?[?&]v=)|(?:.*?[?&]list=))([^"&?\/\s]{11}))/
-  );
-
-  if (videoIdMatch) {
-    // C'est une vidéo, retourner l'URL de la miniature
-    return `https://img.youtube.com/vi/${videoIdMatch[1]}/hqdefault.jpg`;
-  }
-  return null;
-}
-
 class YouTubeLinkPlayer {
   constructor(options = {}) {
+    this.version = "1.13.0";
     this._videoGroups = new Map();
     this._individualVideos = new Map();
     this._players = new Map();
+    this._imageCache = new Map();
+    this._tooltips = new Set();
     this._options = {
-      linkAttribute: "data-yt-link",
-      targetAttribute: "data-yt-target",
-      videoVisibleClass: "visible",
-      videoWrapperClass: "video-wrapper",
-      videoContainerClass: "video-container",
-      transitionDuration: 500,
-      onVideoShow: null,
-      onVideoHide: null,
-      onError: null,
-      autoPlayOnShow: false,
-      mute: false,
-      pauseOnHide: true,
-      autoReset: false,
-      showOnInit: false,
-      rootContainer: null,
-      showPreviewOnHover: false, // Option pour afficher l'aperçu
-      ...options,
+      ...DEFAULT_OPTIONS,
+      ...options
     };
+
+    // Détection du support tactile
+    this._isTouchDevice =
+      "ontouchstart" in window || navigator.maxTouchPoints > 0;
 
     this._rootElement =
       this._options.rootContainer instanceof HTMLElement
@@ -101,43 +110,427 @@ class YouTubeLinkPlayer {
       link.dataset.ytProcessed = "true";
     }
   }
+
+  // obtient la preview image url
+  _getThumbnailUrl(youtubeUrl) {
+    const videoIdMatch = youtubeUrl.match(
+      /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]*\/\S+\/|(?:v|e(?:mbed)?)\/|(?:.*?[?&]v=)|(?:.*?[?&]list=))([^"&?\/\s]{11}))/
+    );
+
+    if (videoIdMatch) {
+      return `https://img.youtube.com/vi/${videoIdMatch[1]}/hqdefault.jpg`;
+    }
+    return null;
+  }
+
+  _cacheImage(url) {
+    if (this._imageCache.has(url)) {
+      return Promise.resolve(this._imageCache.get(url));
+    }
+
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        this._imageCache.set(url, url);
+        resolve(url);
+      };
+      img.onerror = () => {
+        this._imageCache.set(url, this._options.tooltipFallbackImage);
+        resolve(this._options.tooltipFallbackImage);
+      };
+      img.src = url;
+    });
+  }
+
+  _cleanupTooltips() {
+    this._tooltips.forEach((tooltip) => {
+      if (!document.body.contains(tooltip.link)) {
+        tooltip.element.remove();
+        this._tooltips.delete(tooltip);
+      }
+    });
+  }
+
+  _isVideoVisible(link) {
+    // Vérifier si la vidéo fait partie d'un groupe
+    const targetId = link.getAttribute(this._options.targetAttribute);
+    if (targetId) {
+      const group = this._videoGroups.get(targetId);
+      return group && group.visibleVideoLink === link;
+    }
+
+    // Vérifier si c'est une vidéo individuelle
+    const videoData = this._individualVideos.get(link);
+    if (videoData) {
+      return videoData.container.classList.contains(
+        this._options.videoVisibleClass
+      );
+    }
+
+    return false;
+  }
+
   _addPreviewTooltip(link) {
-    const thumbnailUrl = getThumbnailUrl(link.href);
+    const thumbnailUrl = this._getThumbnailUrl(link.href);
     if (!thumbnailUrl) {
       console.warn(
-        `No image preview found for the YouTube link '${link.href}'. This may be due to an unavailable thumbnail or a default image being used.`
+        `No image preview found for the YouTube link '${link.href}'`
       );
       return;
     }
 
-    const tooltip = document.createElement("div");
-    tooltip.classList.add("yt-preview-tooltip");
-    tooltip.style.position = "absolute";
-    tooltip.style.display = "none";
-    tooltip.style.backgroundSize = "cover"; // Utilisation de "cover" pour s'assurer que l'image occupe toute la surface du tooltip
-    tooltip.style.backgroundPosition = "center";
-    tooltip.style.backgroundRepeat = "no-repeat";
-    tooltip.style.width = "480px"; // Largeur typique d'une image 'hqdefault'
-    tooltip.style.height = "360px"; // Hauteur typique d'une image 'hqdefault'
-    tooltip.style.border = "8px solid white";
-    tooltip.style.borderRadius = "8px";
-    tooltip.style.boxShadow = "0 4px 8px rgba(0, 0, 0, 0.4)";
-    tooltip.style.transition = "all 0.3s ease";
-    tooltip.style.zIndex = "9999"; // Assurer que le tooltip soit au-dessus des autres éléments
+    // Ajout des styles globaux
+    this._addGlobalStyles();
+
+    // Création et configuration du tooltip
+    const tooltip = this._createTooltipElement(link);
+    const imageContainer = this._createImageContainer();
+    const loader = this._createLoader();
+    const playButton = this._createPlayButton();
+    const title = this._createTitle(link);
+
+    // Assemblage des éléments
+    tooltip.appendChild(loader);
+    tooltip.appendChild(imageContainer);
+    tooltip.appendChild(playButton);
+    tooltip.appendChild(title);
     document.body.appendChild(tooltip);
 
-    link.addEventListener("mouseenter", (e) => {
-      tooltip.style.backgroundImage = `url(${thumbnailUrl})`;
-      tooltip.style.left = `${e.pageX + 10}px`;
-      tooltip.style.top = `${e.pageY + 10}px`;
+    // Activation du zoom si configuré
+    if (this._options.tooltipZoomEffect) {
+      tooltip.dataset.zoom = "true";
+    }
+
+    // Gestion des événements en fonction du type d'appareil
+    if (this._isTouchDevice) {
+      this._setupTouchEvents(link, tooltip, imageContainer, thumbnailUrl);
+    } else {
+      this._setupMouseEvents(link, tooltip, imageContainer, thumbnailUrl);
+    }
+
+    // Ajout au tracker de tooltips
+    this._tooltips.add({ element: tooltip, link });
+
+    // Nettoyage périodique des tooltips
+    if (!this._cleanupInterval) {
+      this._cleanupInterval = setInterval(() => this._cleanupTooltips(), 60000);
+    }
+  }
+
+  _addGlobalStyles() {
+    if (!document.querySelector("#yt-preview-styles")) {
+      const style = document.createElement("style");
+      style.id = "yt-preview-styles";
+      style.textContent = `
+      @keyframes yt-preview-spin {
+        0% { transform: translate(-50%, -50%) rotate(0deg); }
+        100% { transform: translate(-50%, -50%) rotate(360deg); }
+      }
+      .yt-preview-tooltip::after {
+        content: '';
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 60px;
+        background: linear-gradient(to bottom, transparent, rgba(0, 0, 0, 0.7));
+      }
+      .yt-preview-title {
+        position: absolute;
+        bottom: 12px;
+        left: 12px;
+        right: 12px;
+        color: white;
+        font-size: 14px;
+        font-weight: 500;
+        z-index: 1;
+        text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .yt-preview-play-button {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 68px;
+        height: 48px;
+        background-color: rgba(0, 0, 0, 0.8);
+        border-radius: 12px;
+        cursor: pointer;
+        opacity: 0.9;
+        transition: opacity 0.3s ease;
+      }
+      .yt-preview-play-button::after {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 55%;
+        transform: translate(-50%, -50%);
+        border-style: solid;
+        border-width: 12px 0 12px 20px;
+        border-color: transparent transparent transparent white;
+      }
+      .yt-preview-tooltip:hover .yt-preview-play-button {
+        opacity: 1;
+        background-color: #ff0000;
+      }
+      .yt-preview-tooltip[data-zoom="true"]:hover {
+        transform: scale(1.02);
+      }
+      @media (hover: none) {
+        .yt-preview-tooltip[data-zoom="true"]:hover {
+          transform: none;
+        }
+        .yt-preview-tooltip .yt-preview-play-button {
+          opacity: 1;
+        }
+      }
+    `;
+      document.head.appendChild(style);
+    }
+  }
+
+  _createTooltipElement(link) {
+    const tooltip = document.createElement("div");
+    tooltip.classList.add("yt-preview-tooltip");
+
+    const baseStyles = {
+      position: "fixed",
+      display: "none",
+      borderRadius: "12px",
+      boxShadow: "0 8px 24px rgba(0, 0, 0, 0.2)",
+      overflow: "hidden",
+      zIndex: "9999",
+      transition: "all 0.3s ease",
+      opacity: "0",
+      background: "#1a1a1a",
+      transform: "scale(1)"
+    };
+
+    if (this._isTouchDevice) {
+      Object.assign(baseStyles, {
+        width: this._options.tooltipMobileWidth,
+        height: this._options.tooltipMobileHeight,
+        left: "50%",
+        transform: "translateX(-50%)"
+      });
+
+      // Position verticale en fonction de l'option
+      switch (this._options.tooltipMobilePosition) {
+        case "top":
+          baseStyles.top = "20px";
+          break;
+        case "bottom":
+          baseStyles.bottom = "20px";
+          break;
+        default: // 'center'
+          baseStyles.top = "50%";
+          baseStyles.transform = "translate(-50%, -50%)";
+      }
+    } else {
+      Object.assign(baseStyles, {
+        width: `${
+          link.dataset.tooltipWidth || this._options.tooltipDefaultWidth
+        }px`,
+        height: `${
+          link.dataset.tooltipHeight || this._options.tooltipDefaultHeight
+        }px`
+      });
+    }
+
+    Object.assign(tooltip.style, baseStyles);
+    return tooltip;
+  }
+
+  _createImageContainer() {
+    const imageContainer = document.createElement("div");
+    Object.assign(imageContainer.style, {
+      position: "absolute",
+      top: "0",
+      left: "0",
+      width: "100%",
+      height: "100%",
+      backgroundSize: "cover",
+      backgroundPosition: "center",
+      opacity: "0",
+      transition: "opacity 0.3s ease"
+    });
+    return imageContainer;
+  }
+
+  _createLoader() {
+    const loader = document.createElement("div");
+    loader.classList.add("yt-preview-loader");
+    Object.assign(loader.style, {
+      position: "absolute",
+      top: "50%",
+      left: "50%",
+      transform: "translate(-50%, -50%)",
+      width: "40px",
+      height: "40px",
+      border: "3px solid rgba(255, 255, 255, 0.2)",
+      borderTop: "3px solid #FFFFFF",
+      borderRadius: "50%",
+      animation: "yt-preview-spin 1s linear infinite"
+    });
+    return loader;
+  }
+
+  _createPlayButton() {
+    const playButton = document.createElement("div");
+    playButton.classList.add("yt-preview-play-button");
+    playButton.setAttribute("aria-label", "Lire la vidéo");
+    return playButton;
+  }
+
+  _createTitle(link) {
+    const title = document.createElement("div");
+    title.classList.add("yt-preview-title");
+    title.textContent = link.textContent || "YouTube Video";
+    return title;
+  }
+
+  _setupTouchEvents(link, tooltip, imageContainer, thumbnailUrl) {
+    let touchTimeout;
+
+    const showTooltip = async (e) => {
+      e.preventDefault();
+
+      if (this._isVideoVisible(link)) return;
+
+      // Préchargement de l'image
+      const cachedUrl = await this._cacheImage(thumbnailUrl);
+      imageContainer.style.backgroundImage = `url(${cachedUrl})`;
+      imageContainer.style.opacity = "1";
+      tooltip.querySelector(".yt-preview-loader").style.display = "none";
+
+      // Affichage du tooltip
       tooltip.style.display = "block";
+      requestAnimationFrame(() => {
+        tooltip.style.opacity = "1";
+      });
+
+      // Timer pour masquer automatiquement
+      clearTimeout(touchTimeout);
+      touchTimeout = setTimeout(() => {
+        hideTooltip();
+      }, this._options.tooltipMobileTimeout);
+    };
+
+    const hideTooltip = () => {
+      clearTimeout(touchTimeout);
+      tooltip.style.opacity = "0";
+      setTimeout(() => {
+        tooltip.style.display = "none";
+      }, 300);
+    };
+
+    // Gestionnaire d'événements tactiles
+    let touchStartTime = 0;
+    const longPressDelay = 500;
+    let longPressTimer;
+
+    link.addEventListener(
+      "touchstart",
+      (e) => {
+        touchStartTime = Date.now();
+        longPressTimer = setTimeout(() => {
+          showTooltip(e);
+        }, longPressDelay);
+      },
+      { passive: false }
+    );
+
+    link.addEventListener("touchend", (e) => {
+      clearTimeout(longPressTimer);
+      const touchDuration = Date.now() - touchStartTime;
+
+      if (touchDuration < longPressDelay) {
+        hideTooltip();
+      }
     });
 
-    link.addEventListener("mouseleave", () => {
-      tooltip.style.display = "none";
+    link.addEventListener("touchmove", () => {
+      clearTimeout(longPressTimer);
+    });
+
+    // Fermeture au clic en dehors
+    document.addEventListener("click", (e) => {
+      if (!tooltip.contains(e.target) && !link.contains(e.target)) {
+        hideTooltip();
+      }
     });
   }
 
+  _setupMouseEvents(link, tooltip, imageContainer, thumbnailUrl) {
+    let showTooltipTimeout;
+    let tooltipVisible = false;
+
+    const showTooltip = (e) => {
+      if (this._isVideoVisible(link)) return;
+
+      tooltipVisible = true;
+      clearTimeout(showTooltipTimeout);
+
+      const tooltipWidth = parseInt(tooltip.style.width);
+      const tooltipHeight = parseInt(tooltip.style.height);
+
+      let left = e.clientX + 20;
+      if (left + tooltipWidth > window.innerWidth) {
+        left = e.clientX - tooltipWidth - 20;
+      }
+
+      let top = e.clientY + 20;
+      if (top + tooltipHeight > window.innerHeight) {
+        top = e.clientY - tooltipHeight - 20;
+      }
+
+      Object.assign(tooltip.style, {
+        left: `${left}px`,
+        top: `${top}px`,
+        display: "block"
+      });
+
+      showTooltipTimeout = setTimeout(() => {
+        if (tooltipVisible) {
+          tooltip.style.opacity = "1";
+        }
+      }, this._options.tooltipDelay);
+    };
+
+    const hideTooltip = () => {
+      tooltipVisible = false;
+      clearTimeout(showTooltipTimeout);
+      tooltip.style.opacity = "0";
+      setTimeout(() => {
+        if (!tooltipVisible) {
+          tooltip.style.display = "none";
+        }
+      }, 300);
+    };
+
+    // Préchargement de l'image
+    const preloadImage = async () => {
+      const cachedUrl = await this._cacheImage(thumbnailUrl);
+      imageContainer.style.backgroundImage = `url(${cachedUrl})`;
+      imageContainer.style.opacity = "1";
+      tooltip.querySelector(".yt-preview-loader").style.display = "none";
+      if (tooltipVisible) {
+        tooltip.style.opacity = "1";
+      }
+    };
+
+    link.addEventListener("mouseenter", () => {
+      preloadImage();
+      showTooltip(event);
+    });
+    link.addEventListener("mousemove", showTooltip);
+    link.addEventListener("mouseleave", hideTooltip);
+  }
+
+  // extrait le video id et playlist id
   _extractVideoData(url) {
     try {
       const videoRegex = /(?:youtu\.be\/|youtube\.com\/.*[?&]v=)([^&]+)/;
@@ -148,7 +541,7 @@ class YouTubeLinkPlayer {
 
       return {
         videoId: videoMatch ? videoMatch[1] : null,
-        playlistId: playlistMatch ? playlistMatch[1] : null,
+        playlistId: playlistMatch ? playlistMatch[1] : null
       };
     } catch (error) {
       this._options.onError?.(`Failed to extract video data: ${error.message}`);
@@ -168,13 +561,13 @@ class YouTubeLinkPlayer {
         enablejsapi: 1,
         origin: window.location.origin,
         mute: this._options.mute ? 1 : 0,
-        autoplay: this._shouldAutoPlay(link) ? 1 : 0,
+        autoplay: this._shouldAutoPlay(link) ? 1 : 0
       },
       events: {
         onReady: () => {
           // Player ready
-        },
-      },
+        }
+      }
     };
 
     if (videoData.playlistId) {
@@ -231,7 +624,7 @@ class YouTubeLinkPlayer {
         this._videoGroups.set(targetId, {
           visibleVideoLink: null,
           videos: new Set(),
-          id: targetId,
+          id: targetId
         });
       }
       this._videoGroups
@@ -316,7 +709,22 @@ class YouTubeLinkPlayer {
     this._options.onVideoHide?.(container, link, videoData, group);
   }
 
+  _hideTooltipForLink(link) {
+    // Find and hide the tooltip associated with this link
+    for (const tooltip of this._tooltips) {
+      if (tooltip.link === link) {
+        tooltip.element.style.opacity = "0";
+        setTimeout(() => {
+          tooltip.element.style.display = "none";
+        }, 300);
+        break;
+      }
+    }
+  }
+
   _showVideo(container, link, videoData, group = null) {
+    this._hideTooltipForLink(link);
+
     let playerId = container.dataset.playerId;
 
     if (!playerId) {

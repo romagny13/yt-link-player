@@ -66,6 +66,39 @@
       .image-wrapper img:hover {
         transform: scale(1.05);
       }
+
+      /* Styles utiles pour le plugin */
+      .video-wrapper {
+        height: 0;
+        overflow: hidden;
+        padding-bottom: 0;
+        position: relative;
+        opacity: 0;
+        transform: translateY(-20px);
+        transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+
+      .video-wrapper.visible {
+        height: auto;
+        opacity: 1;
+        transform: translateY(0);
+        padding-bottom: 56.25%; /* 16:9 aspect ratio */
+        margin: 20px 0;
+      }
+
+      .video-container {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+      }
+
+      .video-container iframe {
+        width: 100%;
+        height: 100%;
+        border: 0;
+      }
     </style>
   </head>
   <body>
@@ -118,7 +151,7 @@
         },
         onError: (error, link) => {
           console.log(error);
-        },
+        }
       });
     </script>
   </body>
